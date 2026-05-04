@@ -7,29 +7,37 @@ from dotenv import load_dotenv
 load_dotenv()
 os.environ['AWS_BEARER_TOKEN_BEDROCK'] = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
 
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import JSONResponse
 from twilio.rest import Client as TwilioClient
+from twilio.request_validator import RequestValidator
 from golden_visa.agent import app as agent_app
 
+# ── App & clients ──────────────────────────────────────────────
 app = FastAPI()
 
 twilio_client = TwilioClient(
     os.getenv("TWILIO_ACCOUNT_SID"),
     os.getenv("TWILIO_AUTH_TOKEN")
 )
+validator = RequestValidator(os.getenv("TWILIO_AUTH_TOKEN"))
 
 TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
 
+# ── Routes ─────────────────────────────────────────────────────
 @app.post("/whatsapp")
-async def whatsapp_webhook(
-    From: str = Form(...),
-    Body: str = Form(...)
-):
+async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = Form(...)):
+    # 1. Verify the request actually came from Twilio
+    form_data = await request.form()
+    url = str(request.url)
+    signature = request.headers.get("X-Twilio-Signature", "")
+
+    if not validator.validate(url, dict(form_data), signature):
+        return JSONResponse(content={"error": "invalid signature"}, status_code=403)
+
+    # 2. Run the agent pipeline
     try:
-        # Use the sender's phone number as thread_id
-        # This means each lead has their own persistent conversation
         thread_id = From.replace("whatsapp:", "").replace("+", "")
 
         result = agent_app.invoke(
@@ -37,10 +45,8 @@ async def whatsapp_webhook(
             config={"configurable": {"thread_id": thread_id}}
         )
 
-        # Get the last message from the agent
         response_text = result["messages"][-1].content
 
-        # Send response back to lead via Twilio
         twilio_client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
             to=From,
