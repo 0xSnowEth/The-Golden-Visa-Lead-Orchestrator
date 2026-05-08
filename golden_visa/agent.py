@@ -15,6 +15,7 @@ from golden_visa.utils.nodes import (
 )
 import boto3
 from langchain_aws import ChatBedrock
+from golden_visa.utils.state import AgentState
 
 os.environ['AWS_BEARER_TOKEN_BEDROCK'] = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
 
@@ -36,6 +37,7 @@ matchmaker = create_matchmaker_agent(llm)
 app = create_supervisor(
     [screener, compliance, researcher, matchmaker],
     model=llm,
+    state_schema=AgentState,
     prompt=(
         "You are a supervisor for a Dubai luxury real estate lead qualification system. "
         "Follow this exact sequence for every new lead: "

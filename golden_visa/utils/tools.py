@@ -2,7 +2,6 @@
 import os
 from exa_py import Exa
 from dotenv import load_dotenv
-from langgraph.types import Command
 import weasyprint
 
 load_dotenv()
@@ -188,44 +187,40 @@ def save_lead_info(
     nationality: str,
     timeline_months: int,
     property_interest: str
-) -> Command:
+) -> str:
     """
     Call this once you have collected all 6 pieces of lead information.
     Saves structured lead data into agent state so downstream agents
     can read it directly instead of parsing conversation history.
     """
-    return Command(update={
-        "lead_name": lead_name,
-        "lead_phone": lead_phone,
-        "budget_aed": budget_aed,
-        "nationality": nationality,
-        "timeline_months": timeline_months,
-        "property_interest": property_interest,
-        "current_step": "screener_complete"
-    })
+    return (
+        f"Lead info saved: {lead_name}, {lead_phone}, "
+        f"AED {budget_aed:,.0f}, {nationality}, "
+        f"{timeline_months} months, {property_interest}"
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════════
 # RESEARCHER TOOLS
 # ════════════════════════════════════════════════════════════════════════════════
 
-def web_search(query: str) -> Command:
+def web_search(query: str) -> str:
     """Search the web for real-time Dubai real estate and market data."""
     results = exa.search(query, num_results=3, contents={"text": True})
     output = ""
     for r in results.results:
         output += f"Title: {r.title}\nURL: {r.url}\nContent: {r.text[:500]}\n\n"
-    return Command(update={"market_data": output})
+    return output
 
 
-def search_dld_listings(area: str, budget_aed: float) -> Command:
+def search_dld_listings(area: str, budget_aed: float) -> str:
     """Search Dubai Land Department and developer listings for properties matching area and budget."""
     query = f"Dubai property listings {area} price AED {budget_aed} Emaar Nakheel Damac 2025"
     results = exa.search(query, num_results=3, contents={"text": True})
     output = ""
     for r in results.results:
         output += f"Title: {r.title}\nURL: {r.url}\nContent: {r.text[:500]}\n\n"
-    return Command(update={"matched_properties": output})
+    return output
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -238,7 +233,7 @@ def check_golden_visa_eligibility(
     is_joint_purchase: bool = False,
     is_offplan: bool = False,
     is_mortgaged: bool = False
-) -> Command:
+) -> str:
     """
     Full UAE Golden Visa eligibility + AML risk screening.
 
@@ -313,11 +308,7 @@ def check_golden_visa_eligibility(
     if risk_tier == "CRITICAL":
         eligible = False
 
-    return Command(update={
-        "Golden_visa_eligable": visa["ten_year_eligible"],
-        "compliance_notes": notes_str,
-        "current_step": "compliance_complete"
-    })
+    return notes_str
 
 
 # ════════════════════════════════════════════════════════════════════════════════
@@ -445,7 +436,7 @@ def generate_lead_pdf(
     eligible: bool,
     compliance_notes: str,
     matched_properties: str
-) -> Command:
+) -> str:
     """
     Generate a premium PDF lead summary. Writes pdf_path into state.
     """
@@ -459,7 +450,4 @@ def generate_lead_pdf(
 
     weasyprint.HTML(string=html).write_pdf(filename)
 
-    return Command(update={
-        "pdf_path": filename,
-        "current_step": "complete"
-    })
+    return filename

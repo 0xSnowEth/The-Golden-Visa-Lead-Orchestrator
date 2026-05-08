@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+twilio
+python-multipart
+python-dotenv
+exa-py
+weasyprint
+langgraph
+langgraph-supervisor
+langchain-core
+langchain-aws
+anthropic
+boto3

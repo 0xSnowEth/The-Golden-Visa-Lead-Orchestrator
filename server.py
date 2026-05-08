@@ -2,6 +2,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fastapi.responses import FileResponse
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -26,6 +27,14 @@ TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
 
 
 # ── Routes ─────────────────────────────────────────────────────
+
+@app.get("/pdf/{thread_id}")
+async def serve_pdf(thread_id: str):
+    path = f"/tmp/lead_{thread_id}.pdf"
+    if os.path.exists(path):
+        return FileResponse(path, media_type="application/pdf")
+    return JSONResponse(content={"error": "not found"}, status_code=404)
+
 @app.post("/whatsapp")
 async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = Form(...)):
     # 1. Verify the request actually came from Twilio
@@ -52,6 +61,15 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
             to=From,
             body=response_text
         )
+
+        pdf_path = result.get("pdf_path")
+        if pdf_path and os.path.exists(pdf_path):
+            twilio_client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=From,
+                body="Your Lead Intelligence Report is ready.",
+                media_url=[f"https://sthenic-unadoringly-lilia.ngrok-free.dev/pdf/{thread_id}"]
+            )
 
         return JSONResponse(content={"status": "ok"})
 
