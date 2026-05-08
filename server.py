@@ -76,9 +76,20 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
             config={"configurable": {"thread_id": thread_id}}
         )
 
+        # Extract state fields immediately after invoke
+        lead_name = result.get("lead_name") or "valued client"
+        budget = result.get("budget_aed")
+        budget_str = f"AED {budget:,.0f}" if isinstance(budget, (int, float)) else "See PDF"
+        area = result.get("property_interest") or "See PDF"
+        timeline = result.get("timeline_months") or "See PDF"
+        eligible_flag = result.get("golden_visa_eligible")
+        visa_str = "✅ Eligible" if eligible_flag else "❌ Review Required"
+
+        print(f"DEBUG STATE: pdf_path={result.get('pdf_path')} | lead_name={lead_name} | eligible={eligible_flag}")
+
+        # Strip internal PDF_PATH line before sending to lead
         response_text = result["messages"][-1].content
-        
-        print(f"DEBUG STATE: pdf_path={result.get('pdf_path')} | lead_name={result.get('lead_name')} | eligible={result.get('golden_visa_eligible')}")
+        response_text = re.sub(r'PDF_PATH:\s*/tmp/\S+\.pdf\n?', '', response_text).strip()
 
         twilio_client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
@@ -88,51 +99,49 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
         pdf_path = result.get("pdf_path")
         if not pdf_path:
-            pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', response_text)
+            pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', result["messages"][-1].content)
             pdf_path = pdf_match.group(1) if pdf_match else None
 
         if pdf_path and os.path.exists(pdf_path):
             twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_NUMBER,
                 to=From,
-                body="Your Lead Intelligence Report is ready.",
+                body=f"Your Lead Intelligence Report is ready, {lead_name}.",
                 media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
             )
-            
-            
-        AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER")  # add this to Railway variables
+
+        AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER")
         if AGENT_WHATSAPP_NUMBER and pdf_path:
             twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_NUMBER,
                 to=f"whatsapp:{AGENT_WHATSAPP_NUMBER}",
                 body=(
                     f"🔔 NEW QUALIFIED LEAD\n\n"
-                    f"Name: {result.get('lead_name', 'N/A')}\n"
-                    f"Phone: {thread_id}\n"
-                    f"Budget: AED {result.get('budget_aed', 'N/A'):,}\n"
-                    f"Area: {result.get('property_interest', 'N/A')}\n"
-                    f"Timeline: {result.get('timeline_months', 'N/A')} months\n"
-                    f"Golden Visa: {'✅ Eligible' if result.get('golden_visa_eligible') else '❌ Review Required'}\n\n"
+                    f"Name: {lead_name}\n"
+                    f"Phone: +{thread_id}\n"
+                    f"Budget: {budget_str}\n"
+                    f"Area: {area}\n"
+                    f"Timeline: {timeline} months\n"
+                    f"Golden Visa: {visa_str}\n\n"
                     f"PDF: https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
-                )   
+                )
             )
 
-        # CRM webhook logic (optional)
         crm_webhook = os.getenv("CRM_WEBHOOK_URL")
         if crm_webhook and pdf_path:
             try:
                 httpx.post(crm_webhook, json={
-                    "lead_name": result.get("lead_name"),
+                    "lead_name": lead_name,
                     "lead_phone": thread_id,
                     "budget_aed": result.get("budget_aed"),
                     "nationality": result.get("nationality"),
                     "timeline_months": result.get("timeline_months"),
                     "property_interest": result.get("property_interest"),
-                    "eligible": result.get("golden_visa_eligible"),
+                    "eligible": eligible_flag,
                     "pdf_url": f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
                 }, timeout=5)
             except Exception:
-                pass  # CRM failure should never crash the main flow
+                pass
 
         return JSONResponse(content={"status": "ok"})
     

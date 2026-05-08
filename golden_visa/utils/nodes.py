@@ -24,7 +24,7 @@ def _screener_hook(state: dict) -> dict:
     ]:
         m = re.search(pattern, last_msg)
         if m:
-            updates[field] = m.group(1).strip()
+            updates[field] = m.group(1).replace("*", "").strip()
     m = re.search(r"BUDGET_AED:\s*([\d,\.]+)", last_msg)
     if m:
         updates["budget_aed"] = float(m.group(1).replace(",", ""))
@@ -129,7 +129,9 @@ def create_matchmaker_agent(model):
             "Read from the conversation: lead name, phone, budget, nationality, "
             "timeline, area, compliance notes, and matched properties. "
             "Call generate_lead_pdf with all those values. "
-            "The tool returns a file path. Output it on its own line prefixed exactly as: PDF_PATH: /tmp/filename.pdf "
-            "Then write a 3-5 line WhatsApp-ready summary for the agent. No markdown tables."
+            "The tool returns a file path. Output it on its own line prefixed exactly as: PDF_PATH: /tmp/filename.pdf\n"
+            "Then write a warm 2-3 line closing message to the lead thanking them "
+            "and confirming their details have been received. "
+            "Do NOT mention agents, consultants, or follow-up calls. No markdown tables."
         )
     )
