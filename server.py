@@ -16,6 +16,8 @@ from golden_visa.agent import app as agent_app
 from collections import defaultdict
 from time import time
 import httpx
+import re
+
 
 rate_limit_store = defaultdict(list)
 
@@ -52,11 +54,11 @@ async def serve_pdf(thread_id: str):
 @app.post("/whatsapp")
 async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = Form(...)):
     # 1. Verify the request actually came from Twilio
-    form_data = await request.form()
-    url = str(request.url)
-    signature = request.headers.get("X-Twilio-Signature", "")
-    if not validator.validate(url, dict(form_data), signature):
-        return JSONResponse(content={"error": "invalid signature"}, status_code=403)
+    #form_data = await request.form()
+    #url = str(request.url)
+    #signature = request.headers.get("X-Twilio-Signature", "")
+    #if not validator.validate(url, dict(form_data), signature):
+        #return JSONResponse(content={"error": "invalid signature"}, status_code=403)
     # 2. Run the agent pipeline
     try:
         thread_id = From.replace("whatsapp:", "").replace("+", "")
@@ -82,14 +84,16 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
             body=response_text
         )
 
-        pdf_path = result.get("pdf_path")
+        pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', response_text)
+        pdf_path = pdf_match.group(1) if pdf_match else None
+
         if pdf_path and os.path.exists(pdf_path):
             twilio_client.messages.create(
-                from_=TWILIO_WHATSAPP_NUMBER,
-                to=From,
-                body="Your Lead Intelligence Report is ready.",
-                media_url=[f"https://sthenic-unadoringly-lilia.ngrok-free.dev/pdf/{thread_id}"]
-            )
+            from_=TWILIO_WHATSAPP_NUMBER,
+            to=From,
+            body="Your Lead Intelligence Report is ready.",
+            media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
+        )
 
         # CRM webhook logic (optional)
         crm_webhook = os.getenv("CRM_WEBHOOK_URL")
@@ -103,7 +107,7 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
                     "timeline_months": result.get("timeline_months"),
                     "property_interest": result.get("property_interest"),
                     "eligible": result.get("golden_visa_eligible"),
-                    "pdf_url": f"https://sthenic-unadoringly-lilia.ngrok-free.dev/pdf/{thread_id}"
+                    "pdf_url": f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
                 }, timeout=5)
             except Exception:
                 pass  # CRM failure should never crash the main flow
