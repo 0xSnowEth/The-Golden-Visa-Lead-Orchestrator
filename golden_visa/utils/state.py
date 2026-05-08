@@ -4,6 +4,7 @@ from langchain_core.messages import BaseMessage
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
+    remaining_steps: int
     
     #Raw lead data collected by screener
     lead_name: str | None
