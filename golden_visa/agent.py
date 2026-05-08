@@ -13,13 +13,13 @@ from golden_visa.utils.nodes import (
     create_dld_researcher_agent,
     create_matchmaker_agent
 )
-#import boto3
-#from langchain_aws import ChatBedrock
+import boto3
+from langchain_aws import ChatBedrock
 from golden_visa.utils.state import AgentState
 
 os.environ['AWS_BEARER_TOKEN_BEDROCK'] = os.getenv("AWS_BEARER_TOKEN_BEDROCK")
 
-from anthropic import AnthropicBedrock
+#from anthropic import AnthropicBedrock
 from langgraph.checkpoint.memory import InMemorySaver
 
 checkpointer = InMemorySaver()

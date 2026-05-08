@@ -15,7 +15,7 @@ class AgentState(TypedDict):
     
     
     #Compliance results:
-    golden_visa_eligable: bool | None
+    golden_visa_eligible: bool | None
     compliance_notes: str | None
     
     #Research results:
