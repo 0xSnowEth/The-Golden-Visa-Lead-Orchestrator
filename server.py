@@ -84,8 +84,10 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
             body=response_text
         )
 
-        pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', response_text)
-        pdf_path = pdf_match.group(1) if pdf_match else None
+        pdf_path = result.get("pdf_path")
+        if not pdf_path:
+            pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', response_text)
+            pdf_path = pdf_match.group(1) if pdf_match else None
 
         if pdf_path and os.path.exists(pdf_path):
             twilio_client.messages.create(
