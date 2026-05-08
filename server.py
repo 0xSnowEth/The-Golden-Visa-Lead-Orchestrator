@@ -77,6 +77,8 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
         )
 
         response_text = result["messages"][-1].content
+        
+        print(f"DEBUG STATE: pdf_path={result.get('pdf_path')} | lead_name={result.get('lead_name')} | eligible={result.get('golden_visa_eligible')}")
 
         twilio_client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
@@ -91,11 +93,29 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
         if pdf_path and os.path.exists(pdf_path):
             twilio_client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            to=From,
-            body="Your Lead Intelligence Report is ready.",
-            media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
-        )
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=From,
+                body="Your Lead Intelligence Report is ready.",
+                media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
+            )
+            
+            
+        AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER")  # add this to Railway variables
+        if AGENT_WHATSAPP_NUMBER and pdf_path:
+            twilio_client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=f"whatsapp:{AGENT_WHATSAPP_NUMBER}",
+                body=(
+                    f"🔔 NEW QUALIFIED LEAD\n\n"
+                    f"Name: {result.get('lead_name', 'N/A')}\n"
+                    f"Phone: {thread_id}\n"
+                    f"Budget: AED {result.get('budget_aed', 'N/A'):,}\n"
+                    f"Area: {result.get('property_interest', 'N/A')}\n"
+                    f"Timeline: {result.get('timeline_months', 'N/A')} months\n"
+                    f"Golden Visa: {'✅ Eligible' if result.get('golden_visa_eligible') else '❌ Review Required'}\n\n"
+                    f"PDF: https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
+                )   
+            )
 
         # CRM webhook logic (optional)
         crm_webhook = os.getenv("CRM_WEBHOOK_URL")
@@ -115,6 +135,7 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
                 pass  # CRM failure should never crash the main flow
 
         return JSONResponse(content={"status": "ok"})
+    
 
     except Exception as e:
         print(f"Error: {e}")
