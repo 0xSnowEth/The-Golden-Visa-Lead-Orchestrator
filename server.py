@@ -75,7 +75,12 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
     except Exception as e:
         print(f"Error: {e}")
-        return JSONResponse(content={"status": "error", "detail": str(e)}, status_code=500)
+        twilio_client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            to=From,
+            body="We're experiencing a brief technical issue. Our team will follow up with you shortly."
+        )
+        return JSONResponse(content={"status": "error"}, status_code=500)
 
 
 @app.get("/health")

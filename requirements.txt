@@ -10,4 +10,5 @@ langgraph-supervisor
 langchain-core
 langchain-aws
 anthropic
+weasyprint
 boto3

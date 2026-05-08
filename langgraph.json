@@ -1,0 +1,5 @@
+{
+    "dependencies": ["."],
+    "graphs": {"agent": "./golden_visa/agent.py:app"},
+    "env": ".env"
+}
