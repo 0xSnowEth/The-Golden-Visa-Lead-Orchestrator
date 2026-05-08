@@ -53,6 +53,10 @@ async def serve_pdf(thread_id: str):
 async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = Form(...)):
     # 1. Verify the request actually came from Twilio
     form_data = await request.form()
+    url = str(request.url)
+    signature = request.headers.get("X-Twilio-Signature", "")
+    if not validator.validate(url, dict(form_data), signature):
+        return JSONResponse(content={"error": "invalid signature"}, status_code=403)
     # 2. Run the agent pipeline
     try:
         thread_id = From.replace("whatsapp:", "").replace("+", "")
@@ -123,4 +127,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
