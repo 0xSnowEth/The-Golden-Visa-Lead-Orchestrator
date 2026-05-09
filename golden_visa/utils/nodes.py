@@ -14,7 +14,7 @@ from golden_visa.utils.tools import (
 # ── Post-model hooks (run after each agent's LLM call, write to state) ────────
 
 def _screener_hook(state: dict) -> dict:
-    updates = {"current-step": "screener_complete"}
+    updates = {"current_step": "screener_complete"}
     messages=state["messages"]
     
     for msg in reversed(messages):
@@ -155,5 +155,13 @@ def create_matchmaker_agent(model):
             "and confirming their details have been received and that a dedicated property specialist will be in touch shortly."
             "Do NOT mention any phone numbers, file paths, or whatsapp summaries. "
             "Do NOT mention agents by title. No markdown tables."
+            "STRICT RULES FOR YOUR CLOSING MESSAGE:\n"
+            "- You MAY say a specialist will be in touch shortly, but do NOT mention any phone numbers or WhatsApp\n"
+            "- Do NOT mention file paths, /tmp/, PDF locations, or report URLs\n"
+            "- Do NOT mention WhatsApp summaries or any messages being sent separately\n"
+            "- Do NOT include any phone numbers in your message\n"
+            "- Do NOT use markdown tables\n"
+            "- End it extremely professionally"
+            "- Keep your entire closing message under 300 characters\n"
         )
     )

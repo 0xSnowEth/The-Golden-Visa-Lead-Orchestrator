@@ -87,11 +87,12 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
         print(f"DEBUG STATE: pdf_path={result.get('pdf_path')} | lead_name={lead_name} | eligible={eligible_flag}")
 
-        # Strip internal PDF_PATH line before sending to lead
-        response_text = result["messages"][-1].content
-        response_text = re.sub(r'PDF_PATH:\s*/tmp/\S+\.pdf\n?', '', response_text)
-        response_text = re.sub(r'\[.*?\]\(/tmp/[^\)]+\)', '', response_text)
-        response_text = re.sub(r'/tmp/\S+\.pdf', '', response_text).strip()
+        # Don't send the full LLM response — send a fixed short message instead
+        response_text = (
+            f"Thank you {lead_name}! ✅ Your profile has been reviewed and your "
+            f"Lead Intelligence Report is ready. A property specialist will be "
+            f"in touch with you shortly."
+        )
 
         twilio_client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,
