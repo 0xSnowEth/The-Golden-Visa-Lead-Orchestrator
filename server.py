@@ -70,6 +70,15 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
                 body="Please wait a moment before sending another message."
             )
             return JSONResponse(content={"status": "rate_limited"})
+        
+        
+        # Only send processing indicator if this looks like a substantive message
+        if len(Body.strip()) > 10:
+            twilio_client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=From,
+                body="⏳ Got it! Give us a moment while we process your information..."
+            )
 
         result = agent_app.invoke(
             {"messages": [{"role": "user", "content": Body}]},
