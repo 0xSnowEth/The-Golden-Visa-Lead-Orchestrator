@@ -89,7 +89,9 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
         # Strip internal PDF_PATH line before sending to lead
         response_text = result["messages"][-1].content
-        response_text = re.sub(r'PDF_PATH:\s*/tmp/\S+\.pdf\n?', '', response_text).strip()
+        response_text = re.sub(r'PDF_PATH:\s*/tmp/\S+\.pdf\n?', '', response_text)
+        response_text = re.sub(r'\[.*?\]\(/tmp/[^\)]+\)', '', response_text)
+        response_text = re.sub(r'/tmp/\S+\.pdf', '', response_text).strip()
 
         twilio_client.messages.create(
             from_=TWILIO_WHATSAPP_NUMBER,

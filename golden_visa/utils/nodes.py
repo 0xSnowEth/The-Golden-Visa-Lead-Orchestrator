@@ -14,24 +14,29 @@ from golden_visa.utils.tools import (
 # ── Post-model hooks (run after each agent's LLM call, write to state) ────────
 
 def _screener_hook(state: dict) -> dict:
-    last_msg = state["messages"][-1].content
-    updates = {}
-    for field, pattern in [
-        ("lead_name",        r"NAME:\s*(.+)"),
-        ("lead_phone",       r"PHONE:\s*(.+)"),
-        ("nationality",      r"NATIONALITY:\s*(.+)"),
-        ("property_interest",r"AREA:\s*(.+)"),
-    ]:
-        m = re.search(pattern, last_msg)
-        if m:
-            updates[field] = m.group(1).replace("*", "").strip()
-    m = re.search(r"BUDGET_AED:\s*([\d,\.]+)", last_msg)
-    if m:
-        updates["budget_aed"] = float(m.group(1).replace(",", ""))
-    m = re.search(r"TIMELINE_MONTHS:\s*(\d+)", last_msg)
-    if m:
-        updates["timeline_months"] = int(m.group(1))
-    updates["current_step"] = "screener_complete"
+    updates = {"current-step": "screener_complete"}
+    messages=state["messages"]
+    
+    for msg in reversed(messages):
+        # Tool call arguments are in AIMessage tool_calls
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tc in msg.tool_calls:
+                if tc.get("name") == "save_lead_info":
+                    args = tc.get("args", {})
+                    if args.get("lead_name"):
+                        updates["lead_name"] = str(args["lead_name"]).replace("*", "").strip()
+                    if args.get("lead_phone"):
+                        updates["lead_phone"] = str(args["lead_phone"]).strip()
+                    if args.get("budget_aed"):
+                        updates["budget_aed"] = float(args["budget_aed"])
+                    if args.get("nationality"):
+                        updates["nationality"] = str(args["nationality"]).strip()
+                    if args.get("timeline_months"):
+                        updates["timeline_months"] = int(args["timeline_months"])
+                    if args.get("property_interest"):
+                        updates["property_interest"] = str(args["property_interest"]).strip()
+                    return updates
+    
     return updates
 
 
@@ -55,11 +60,27 @@ def _researcher_hook(state: dict) -> dict:
 
 
 def _matchmaker_hook(state: dict) -> dict:
-    last_msg = state["messages"][-1].content
     updates = {"current_step": "complete"}
+    messages = state["messages"]
+    
+    # First try tool call args for generate_lead_pdf
+    for msg in reversed(messages):
+        if hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tc in msg.tool_calls:
+                if tc.get("name") == "generate_lead_pdf":
+                    # PDF path is built from lead_phone in tool args
+                    args = tc.get("args", {})
+                    phone = str(args.get("lead_phone", "")).replace("+", "").replace(" ", "")
+                    if phone:
+                        updates["pdf_path"] = f"/tmp/lead_{phone}.pdf"
+                    return updates
+    
+    # Fallback: scan last message text
+    last_msg = state["messages"][-1].content
     m = re.search(r"PDF_PATH:\s*(/tmp/\S+\.pdf)", last_msg)
     if m:
         updates["pdf_path"] = m.group(1).strip()
+    
     return updates
 
 
@@ -131,7 +152,8 @@ def create_matchmaker_agent(model):
             "Call generate_lead_pdf with all those values. "
             "The tool returns a file path. Output it on its own line prefixed exactly as: PDF_PATH: /tmp/filename.pdf\n"
             "Then write a warm 2-3 line closing message to the lead thanking them "
-            "and confirming their details have been received. "
-            "Do NOT mention agents, consultants, or follow-up calls. No markdown tables."
+            "and confirming their details have been received and that a dedicated property specialist will be in touch shortly."
+            "Do NOT mention any phone numbers, file paths, or whatsapp summaries. "
+            "Do NOT mention agents by title. No markdown tables."
         )
     )
