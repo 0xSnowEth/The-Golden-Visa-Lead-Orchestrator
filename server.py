@@ -76,7 +76,6 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
             config={"configurable": {"thread_id": thread_id}}
         )
 
-        # Extract state fields immediately after invoke
         lead_name = result.get("lead_name") or "valued client"
         budget = result.get("budget_aed")
         budget_str = f"AED {budget:,.0f}" if isinstance(budget, (int, float)) else "See PDF"
@@ -87,64 +86,68 @@ async def whatsapp_webhook(request: Request, From: str = Form(...), Body: str = 
 
         print(f"DEBUG STATE: pdf_path={result.get('pdf_path')} | lead_name={lead_name} | eligible={eligible_flag}")
 
-        # Don't send the full LLM response — send a fixed short message instead
-        response_text = (
-            f"Thank you {lead_name}! ✅ Your profile has been reviewed and your "
-            f"Lead Intelligence Report is ready. A property specialist will be "
-            f"in touch with you shortly."
-        )
-
-        twilio_client.messages.create(
-            from_=TWILIO_WHATSAPP_NUMBER,
-            to=From,
-            body=response_text
-        )
-
         pdf_path = result.get("pdf_path")
         if not pdf_path:
             pdf_match = re.search(r'PDF_PATH:\s*(/tmp/\S+\.pdf)', result["messages"][-1].content)
             pdf_path = pdf_match.group(1) if pdf_match else None
 
-        if pdf_path and os.path.exists(pdf_path):
+        if pdf_path:
             twilio_client.messages.create(
                 from_=TWILIO_WHATSAPP_NUMBER,
                 to=From,
-                body=f"Your Lead Intelligence Report is ready, {lead_name}.",
-                media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
-            )
-
-        AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER")
-        if AGENT_WHATSAPP_NUMBER and pdf_path:
-            twilio_client.messages.create(
-                from_=TWILIO_WHATSAPP_NUMBER,
-                to=f"whatsapp:{AGENT_WHATSAPP_NUMBER}",
                 body=(
-                    f"🔔 NEW QUALIFIED LEAD\n\n"
-                    f"Name: {lead_name}\n"
-                    f"Phone: +{thread_id}\n"
-                    f"Budget: {budget_str}\n"
-                    f"Area: {area}\n"
-                    f"Timeline: {timeline} months\n"
-                    f"Golden Visa: {visa_str}\n\n"
-                    f"PDF: https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
+                    f"Thank you {lead_name}! ✅ Your profile has been reviewed and your "
+                    f"Lead Intelligence Report is ready. A property specialist will be "
+                    f"in touch with you shortly."
                 )
             )
-
-        crm_webhook = os.getenv("CRM_WEBHOOK_URL")
-        if crm_webhook and pdf_path:
-            try:
-                httpx.post(crm_webhook, json={
-                    "lead_name": lead_name,
-                    "lead_phone": thread_id,
-                    "budget_aed": result.get("budget_aed"),
-                    "nationality": result.get("nationality"),
-                    "timeline_months": result.get("timeline_months"),
-                    "property_interest": result.get("property_interest"),
-                    "eligible": eligible_flag,
-                    "pdf_url": f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
-                }, timeout=5)
-            except Exception:
-                pass
+            if os.path.exists(pdf_path):
+                twilio_client.messages.create(
+                    from_=TWILIO_WHATSAPP_NUMBER,
+                    to=From,
+                    body=f"Your Lead Intelligence Report is ready, {lead_name}.",
+                    media_url=[f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"]
+                )
+            AGENT_WHATSAPP_NUMBER = os.getenv("AGENT_WHATSAPP_NUMBER")
+            if AGENT_WHATSAPP_NUMBER:
+                twilio_client.messages.create(
+                    from_=TWILIO_WHATSAPP_NUMBER,
+                    to=f"whatsapp:{AGENT_WHATSAPP_NUMBER}",
+                    body=(
+                        f"🔔 NEW QUALIFIED LEAD\n\n"
+                        f"Name: {lead_name}\n"
+                        f"Phone: +{thread_id}\n"
+                        f"Budget: {budget_str}\n"
+                        f"Area: {area}\n"
+                        f"Timeline: {timeline} months\n"
+                        f"Golden Visa: {visa_str}\n\n"
+                        f"PDF: https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
+                    )
+                )
+            crm_webhook = os.getenv("CRM_WEBHOOK_URL")
+            if crm_webhook:
+                try:
+                    httpx.post(crm_webhook, json={
+                        "lead_name": lead_name,
+                        "lead_phone": thread_id,
+                        "budget_aed": result.get("budget_aed"),
+                        "nationality": result.get("nationality"),
+                        "timeline_months": result.get("timeline_months"),
+                        "property_interest": result.get("property_interest"),
+                        "eligible": eligible_flag,
+                        "pdf_url": f"https://golden-visa-orchestrator-production.up.railway.app/pdf/{thread_id}"
+                    }, timeout=5)
+                except Exception:
+                    pass
+        else:
+            response_text = result["messages"][-1].content
+            if len(response_text) > 1500:
+                response_text = response_text[:1500] + "..."
+            twilio_client.messages.create(
+                from_=TWILIO_WHATSAPP_NUMBER,
+                to=From,
+                body=response_text
+            )
 
         return JSONResponse(content={"status": "ok"})
     
